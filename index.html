@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人 生 · 周 迹</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    text-align:center;
+    transition:0.3s;
+}
+
+/* ===== 主题 ===== */
+body.dark{
+    background:#0f0f10;
+    color:#aaa;
+}
+
+body.light{
+    background:#f5f5f5;
+    color:#333;
+}
+
+/* ===== 顶部 ===== */
+h1{
+    margin:14px 0 6px;
+    font-weight:normal;
+    letter-spacing:2px;
+}
+
+.topbar{
+    font-size:12px;
+    margin-bottom:6px;
+}
+
+button{
+    font-size:12px;
+    padding:4px 8px;
+    cursor:pointer;
+}
+
+/* ===== 统计 ===== */
+.stats{
+    font-size:12px;
+    margin-bottom:8px;
+}
+
+/* ===== 容器 ===== */
+.wrap{
+    width:100%;
+    overflow:auto;
+}
+
+/* ===== 表格 ===== */
+table{
+    border-collapse:collapse;
+    margin:auto;
+}
+
+td{
+    width:10px;
+    height:10px;
+    cursor:pointer;
+}
+
+/* 普通格 */
+td.cell{
+    border:1px solid rgba(100,100,100,0.2);
+}
+
+/* 暗黑/亮色差异 */
+body.dark td.cell{ background:#151515; }
+body.light td.cell{ background:#eaeaea; }
+
+/* 点亮 */
+td.on{
+    background:#ffffff !important;
+}
+
+/* 左侧年份 */
+td.y{
+    width:26px;
+    font-size:10px;
+    border:none;
+    background:transparent !important;
+    text-align:right;
+    padding-right:4px;
+}
+
+/* 顶部周 */
+td.x{
+    height:16px;
+    font-size:10px;
+    border:none;
+    background:transparent !important;
+}
+</style>
+</head>
+
+<body>
+
+<h1>人 生 · 周 迹</h1>
+
+<div class="topbar">
+    <button onclick="toggleTheme()">切换主题</button>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="wrap">
+<table id="grid"></table>
+</div>
+
+<script>
+(function(){
+
+var rows = 100, cols = 52;
+var table = document.getElementById("grid");
+var stats = document.getElementById("stats");
+
+// ===== 主题 =====
+var theme = localStorage.getItem("theme");
+if(!theme){
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? "light" : "dark";
+}
+document.body.className = theme;
+
+window.toggleTheme = function(){
+    theme = (theme === "dark") ? "light" : "dark";
+    document.body.className = theme;
+    localStorage.setItem("theme", theme);
+};
+
+// ===== 数据 =====
+var store = {};
+try{
+    store = JSON.parse(localStorage.getItem("life_grid") || "{}");
+}catch(e){}
+
+// 保存
+function save(){
+    localStorage.setItem("life_grid", JSON.stringify(store));
+    updateStats();
+}
+
+// ===== 统计 =====
+function updateStats(){
+    var on = 0;
+    for(var k in store){
+        if(store[k] === 1) on++;
+    }
+    stats.innerHTML =
+        "已活周数：<b>" + on +
+        "</b> ｜ 剩余周数：<b>" + (5200 - on) + "</b>";
+}
+
+// ===== 是否点亮 =====
+function isOn(r,c){
+    var k = r+"-"+c;
+    return store[k] === 1 || r < 22;
+}
+
+// ===== 画笔状态 =====
+var painting = false;
+var paintValue = 1; // 1点亮 / 0熄灭
+
+function setCell(td,r,c,val){
+    var k = r+"-"+c;
+    store[k] = val;
+    if(val){
+        td.className = "cell on";
+    }else{
+        td.className = "cell";
+    }
+}
+
+// ===== 构建表格 =====
+for(var r=-1; r<rows; r++){
+
+    var tr = document.createElement("tr");
+
+    // 左侧年份
+    var y = document.createElement("td");
+    y.className = "y";
+    if(r >= 0 && (r+1)%5===0) y.innerHTML = r+1;
+    tr.appendChild(y);
+
+    for(var c=0; c<cols; c++){
+
+        var td = document.createElement("td");
+
+        // 顶部周
+        if(r === -1){
+            td.className = "x";
+            if((c+1)%10===0) td.innerHTML = c+1;
+            tr.appendChild(td);
+            continue;
+        }
+
+        td.className = "cell";
+
+        if(isOn(r,c)){
+            td.className = "cell on";
+        }
+
+        // ===== 点击 =====
+        td.onclick = (function(td,r,c){
+            return function(){
+                var k = r+"-"+c;
+                var v = store[k] === 1 ? 0 : 1;
+                setCell(td,r,c,v);
+                save();
+            };
+        })(td,r,c);
+
+        // ===== 鼠标拖拽 =====
+        td.onmousedown = (function(td,r,c){
+            return function(){
+                painting = true;
+                var k = r+"-"+c;
+                paintValue = (store[k] === 1) ? 0 : 1;
+                setCell(td,r,c,paintValue);
+            };
+        })(td,r,c);
+
+        td.onmouseover = (function(td,r,c){
+            return function(){
+                if(painting){
+                    setCell(td,r,c,paintValue);
+                }
+            };
+        })(td,r,c);
+
+        // ===== 触屏 =====
+        td.ontouchstart = (function(td,r,c){
+            return function(e){
+                painting = true;
+                var k = r+"-"+c;
+                paintValue = (store[k] === 1) ? 0 : 1;
+                setCell(td,r,c,paintValue);
+                e.preventDefault();
+            };
+        })(td,r,c);
+
+        td.ontouchmove = function(e){
+            var t = document.elementFromPoint(
+                e.touches[0].clientX,
+                e.touches[0].clientY
+            );
+            if(painting && t && t.className.indexOf("cell")>=0){
+                t.click();
+            }
+        };
+
+        tr.appendChild(td);
+    }
+
+    table.appendChild(tr);
+}
+
+// ===== 全局事件 =====
+document.onmouseup = function(){ painting = false; save(); };
+document.ontouchend = function(){ painting = false; save(); };
+
+// 初始化统计
+updateStats();
+
+})();
+</script>
+
+</body>
+</html>
